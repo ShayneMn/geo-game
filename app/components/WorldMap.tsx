@@ -9,10 +9,7 @@ import type {
   GeometryCollection,
 } from "topojson-specification";
 
-type CountryProperties = {
-  name: string;
-};
-
+type CountryProperties = { name: string };
 type CountryFeature = Feature<Geometry, CountryProperties>;
 type CountryFeatureCollection = FeatureCollection<
   Geometry,
@@ -31,18 +28,37 @@ export default function WorldMap({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<SVGGElement | null>(null);
 
+  const targetCountryRef = useRef(targetCountry);
+  const onCorrectRef = useRef(onCorrect);
+  useEffect(() => {
+    targetCountryRef.current = targetCountry;
+  }, [targetCountry]);
+  useEffect(() => {
+    onCorrectRef.current = onCorrect;
+  }, [onCorrect]);
+
   const [worldData, setWorldData] =
     useState<CountryFeatureCollection | null>(null);
   const [topologyData, setTopologyData] = useState<Topology<{
     countries: GeometryCollection<CountryProperties>;
   }> | null>(null);
 
-  const [selectedCountry, setSelectedCountry] = useState<
-    string | null
-  >(null);
-  const [previousCountries, setPreviousCountries] = useState<
-    string[]
-  >([]);
+  const [selection, setSelection] = useState<{
+    country: string;
+    forTarget: string;
+  } | null>(null);
+  const [correctCountries, setCorrectCountries] = useState<
+    Set<string>
+  >(new Set());
+
+  const selectedCountry =
+    selection?.forTarget === targetCountry ? selection.country : null;
+
+  const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
+  const zoomBehaviorRef = useRef<d3.ZoomBehavior<
+    SVGSVGElement,
+    undefined
+  > | null>(null);
 
   const width = 1000;
   const height = 550;
@@ -116,10 +132,11 @@ export default function WorldMap({
         .style("cursor", "pointer")
         .on("click", (_, d) => {
           const name = d.properties?.name ?? "Unknown";
-          setSelectedCountry(name);
-          if (name === targetCountry) {
-            setPreviousCountries((prev) => [...prev, name]);
-            setTimeout(() => onCorrect(), 600);
+          const target = targetCountryRef.current;
+          setSelection({ country: name, forTarget: target });
+          if (name === target) {
+            setCorrectCountries((prev) => new Set([...prev, name]));
+            setTimeout(() => onCorrectRef.current(), 300);
           }
         });
 
@@ -151,6 +168,7 @@ export default function WorldMap({
         "zoom",
         (event: d3.D3ZoomEvent<SVGSVGElement, undefined>) => {
           const { x, y, k } = event.transform;
+          zoomTransformRef.current = event.transform;
           const scaledWorldWidth = (worldWidth - baseStroke) * k;
           const normalizedX =
             ((x % scaledWorldWidth) + scaledWorldWidth) %
@@ -167,8 +185,11 @@ export default function WorldMap({
         },
       );
 
+    zoomBehaviorRef.current = zoomBehavior;
     svg.call(zoomBehavior);
-  }, [worldData, topologyData, targetCountry, onCorrect]);
+
+    svg.call(zoomBehavior.transform, zoomTransformRef.current);
+  }, [worldData, topologyData]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -177,21 +198,13 @@ export default function WorldMap({
       .selectAll<SVGPathElement, CountryFeature>(".country")
       .attr("fill", (d) => {
         const name = d.properties?.name ?? "Unknown";
-        if (
-          (name === selectedCountry && name === targetCountry) ||
-          previousCountries.includes(name)
-        ) {
-          return "#22c55e";
-        } else if (
-          name !== targetCountry &&
-          name === selectedCountry
-        ) {
-          return "#ef4444";
-        } else {
-          return "#ffffff";
+        if (correctCountries.has(name)) return "#22c55e";
+        if (name === selectedCountry) {
+          return name === targetCountry ? "#22c55e" : "#ef4444";
         }
+        return "#ffffff";
       });
-  }, [previousCountries, selectedCountry, targetCountry]);
+  }, [correctCountries, selectedCountry, targetCountry]);
 
   if (!worldData) return <div>Loading map...</div>;
 
