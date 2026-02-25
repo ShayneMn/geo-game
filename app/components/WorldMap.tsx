@@ -4,27 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import { feature, mesh } from "topojson-client";
 import type { FeatureCollection, Feature, Geometry } from "geojson";
-import type {
-  Topology,
-  GeometryCollection,
-} from "topojson-specification";
+import type { Topology, GeometryCollection } from "topojson-specification";
 
 type CountryProperties = { name: string };
 type CountryFeature = Feature<Geometry, CountryProperties>;
-type CountryFeatureCollection = FeatureCollection<
-  Geometry,
-  CountryProperties
->;
+type CountryFeatureCollection = FeatureCollection<Geometry, CountryProperties>;
 
 type WorldMapProps = {
   targetCountry: string;
   onCorrect: () => void;
 };
 
-export default function WorldMap({
-  targetCountry,
-  onCorrect,
-}: WorldMapProps) {
+export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<SVGGElement | null>(null);
 
@@ -37,8 +28,9 @@ export default function WorldMap({
     onCorrectRef.current = onCorrect;
   }, [onCorrect]);
 
-  const [worldData, setWorldData] =
-    useState<CountryFeatureCollection | null>(null);
+  const [worldData, setWorldData] = useState<CountryFeatureCollection | null>(
+    null,
+  );
   const [topologyData, setTopologyData] = useState<Topology<{
     countries: GeometryCollection<CountryProperties>;
   }> | null>(null);
@@ -47,9 +39,9 @@ export default function WorldMap({
     country: string;
     forTarget: string;
   } | null>(null);
-  const [correctCountries, setCorrectCountries] = useState<
-    Set<string>
-  >(new Set());
+  const [correctCountries, setCorrectCountries] = useState<Set<string>>(
+    new Set(),
+  );
 
   const selectedCountry =
     selection?.forTarget === targetCountry ? selection.country : null;
@@ -84,12 +76,7 @@ export default function WorldMap({
   }, []);
 
   useEffect(() => {
-    if (
-      !svgRef.current ||
-      !containerRef.current ||
-      !worldData ||
-      !topologyData
-    )
+    if (!svgRef.current || !containerRef.current || !worldData || !topologyData)
       return;
 
     const svg = d3.select<SVGSVGElement, undefined>(svgRef.current);
@@ -164,26 +151,21 @@ export default function WorldMap({
         [-Infinity, -80],
         [Infinity, height + 80],
       ])
-      .on(
-        "zoom",
-        (event: d3.D3ZoomEvent<SVGSVGElement, undefined>) => {
-          const { x, y, k } = event.transform;
-          zoomTransformRef.current = event.transform;
-          const scaledWorldWidth = (worldWidth - baseStroke) * k;
-          const normalizedX =
-            ((x % scaledWorldWidth) + scaledWorldWidth) %
-            scaledWorldWidth;
+      .on("zoom", (event: d3.D3ZoomEvent<SVGSVGElement, undefined>) => {
+        const { x, y, k } = event.transform;
+        zoomTransformRef.current = event.transform;
+        const scaledWorldWidth = (worldWidth - baseStroke) * k;
+        const normalizedX =
+          ((x % scaledWorldWidth) + scaledWorldWidth) % scaledWorldWidth;
 
-          container
-            .selectAll<SVGGElement, undefined>(".world-copy")
-            .attr("transform", (_, i) => {
-              const offsetIndex = i - 1;
-              const offsetX =
-                normalizedX + offsetIndex * scaledWorldWidth;
-              return `translate(${offsetX}, ${y}) scale(${k})`;
-            });
-        },
-      );
+        container
+          .selectAll<SVGGElement, undefined>(".world-copy")
+          .attr("transform", (_, i) => {
+            const offsetIndex = i - 1;
+            const offsetX = normalizedX + offsetIndex * scaledWorldWidth;
+            return `translate(${offsetX}, ${y}) scale(${k})`;
+          });
+      });
 
     zoomBehaviorRef.current = zoomBehavior;
     svg.call(zoomBehavior);
