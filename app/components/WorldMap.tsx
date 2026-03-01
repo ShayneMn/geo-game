@@ -3,12 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import { feature, mesh } from "topojson-client";
-import type { FeatureCollection, Feature, Geometry } from "geojson";
+import countriesJson from "@/data/countries.json";
+import { getParentCountry } from "@/lib/utils";
 import type { Topology, GeometryCollection } from "topojson-specification";
+import type {
+  CountryFeature,
+  CountryFeatureCollection,
+  CountryMetaMap,
+  CountryProperties,
+} from "@/types";
 
-type CountryProperties = { name: string };
-type CountryFeature = Feature<Geometry, CountryProperties>;
-type CountryFeatureCollection = FeatureCollection<Geometry, CountryProperties>;
+const countries: CountryMetaMap = countriesJson;
+
+const width = 1000;
+const height = 550;
+const baseStroke = 0.5;
 
 type WorldMapProps = {
   targetCountry: string;
@@ -24,11 +33,8 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
 
   useEffect(() => {
     targetCountryRef.current = targetCountry;
-  }, [targetCountry]);
-
-  useEffect(() => {
     onCorrectRef.current = onCorrect;
-  }, [onCorrect]);
+  }, [targetCountry, onCorrect]);
 
   const [worldData, setWorldData] = useState<CountryFeatureCollection | null>(
     null,
@@ -37,16 +43,13 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
     countries: GeometryCollection<CountryProperties>;
   }> | null>(null);
 
-  const [selection, setSelection] = useState<{
+  const [selectedCountry, setSelectedCountry] = useState<{
     country: string;
-    forTarget: string;
+    parent: string;
   } | null>(null);
   const [correctCountries, setCorrectCountries] = useState<Set<string>>(
     new Set(),
   );
-
-  const selectedCountry =
-    selection?.forTarget === targetCountry ? selection.country : null;
 
   const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<
@@ -54,10 +57,6 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
     undefined
   > | null>(null);
   const worldWidthRef = useRef<number>(0);
-
-  const width = 1000;
-  const height = 550;
-  const baseStroke = 0.5;
 
   useEffect(() => {
     fetch("/data/worldmap.json")
@@ -101,6 +100,19 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
     const worldWidth = 2 * Math.PI * projection.scale();
     worldWidthRef.current = worldWidth;
 
+    const clickHandler = (event: PointerEvent, d: CountryFeature) => {
+      const name = d.properties?.name ?? "Unknown";
+      const target = targetCountryRef.current;
+      const parent = getParentCountry(d, countries);
+
+      setSelectedCountry({ country: name, parent });
+
+      if (parent === target) {
+        setCorrectCountries((prev) => new Set([...prev, parent]));
+        setTimeout(() => onCorrectRef.current(), 300);
+      }
+    };
+
     [-1, 0, 1].forEach((copyIndex) => {
       const group = outer
         .append("g")
@@ -116,20 +128,13 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
         .attr("d", (d) => pathGenerator(d) ?? "")
         .attr("fill", "#ffffff")
         .style("cursor", "pointer")
-        .on("click", (_, d) => {
-          const name = d.properties?.name ?? "Unknown";
-          const target = targetCountryRef.current;
-          setSelection({ country: name, forTarget: target });
-          if (name === target) {
-            setCorrectCountries((prev) => new Set([...prev, name]));
-            setTimeout(() => onCorrectRef.current(), 300);
-          }
-        });
+        .on("click", clickHandler);
 
       const borders = mesh(
         topologyData,
         topologyData.objects.countries,
-        () => true,
+        (a, b) =>
+          getParentCountry(a, countries) !== getParentCountry(b, countries),
       );
 
       group
@@ -178,14 +183,14 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
     d3.select(outerRef.current)
       .selectAll<SVGPathElement, CountryFeature>(".country")
       .attr("fill", (d) => {
-        const name = d.properties?.name ?? "Unknown";
-
-        if (correctCountries.has(name)) return "#22c55e";
-
-        if (name === selectedCountry) {
-          return name === targetCountry ? "#22c55e" : "#ef4444";
-        }
-
+        const parent = getParentCountry(d, countries);
+        if (correctCountries.has(parent)) return "#22c55e";
+        if (
+          selectedCountry &&
+          parent === selectedCountry.parent &&
+          selectedCountry.parent !== targetCountry
+        )
+          return "#ef4444";
         return "#ffffff";
       });
   }, [correctCountries, selectedCountry, targetCountry]);
