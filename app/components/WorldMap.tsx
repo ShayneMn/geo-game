@@ -17,13 +17,15 @@ type WorldMapProps = {
 
 export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const containerRef = useRef<SVGGElement | null>(null);
+  const outerRef = useRef<SVGGElement | null>(null);
 
   const targetCountryRef = useRef(targetCountry);
   const onCorrectRef = useRef(onCorrect);
+
   useEffect(() => {
     targetCountryRef.current = targetCountry;
   }, [targetCountry]);
+
   useEffect(() => {
     onCorrectRef.current = onCorrect;
   }, [onCorrect]);
@@ -51,6 +53,7 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
     SVGSVGElement,
     undefined
   > | null>(null);
+  const worldWidthRef = useRef<number>(0);
 
   const width = 1000;
   const height = 550;
@@ -69,6 +72,7 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
             topology,
             topology.objects.countries,
           ) as CountryFeatureCollection;
+
           setTopologyData(topology);
           setWorldData(geo);
         },
@@ -76,37 +80,32 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
   }, []);
 
   useEffect(() => {
-    if (!svgRef.current || !containerRef.current || !worldData || !topologyData)
+    if (!svgRef.current || !outerRef.current || !worldData || !topologyData)
       return;
 
     const svg = d3.select<SVGSVGElement, undefined>(svgRef.current);
-    const container = d3.select(containerRef.current);
+    const outer = d3.select(outerRef.current);
 
-    container.selectAll("*").remove();
+    outer.selectAll("*").remove();
 
     const projection = d3
       .geoEquirectangular()
       .fitSize([width, height], worldData)
       .clipExtent([
-        [0, 0],
-        [width, height],
+        [-width, -height],
+        [width * 2, height * 2],
       ]);
 
     const pathGenerator = d3.geoPath(projection);
 
-    const leftEdge = projection([-180, 0]);
-    const rightEdge = projection([180, 0]);
-    const worldWidth =
-      leftEdge && rightEdge ? rightEdge[0] - leftEdge[0] : width;
+    const worldWidth = 2 * Math.PI * projection.scale();
+    worldWidthRef.current = worldWidth;
 
     [-1, 0, 1].forEach((copyIndex) => {
-      const group = container
+      const group = outer
         .append("g")
         .attr("class", "world-copy")
-        .attr(
-          "transform",
-          `translate(${copyIndex * (worldWidth - baseStroke)}, 0)`,
-        );
+        .attr("transform", `translate(${copyIndex * worldWidth}, 0)`);
 
       group
         .selectAll<SVGPathElement, CountryFeature>("path.country")
@@ -151,39 +150,42 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
         [-Infinity, -80],
         [Infinity, height + 80],
       ])
-      .on("zoom", (event: d3.D3ZoomEvent<SVGSVGElement, undefined>) => {
+      .on("zoom", (event) => {
         const { x, y, k } = event.transform;
         zoomTransformRef.current = event.transform;
-        const scaledWorldWidth = (worldWidth - baseStroke) * k;
+
+        const ww = worldWidthRef.current;
+        const scaledWorldWidth = ww * k;
+
         const normalizedX =
           ((x % scaledWorldWidth) + scaledWorldWidth) % scaledWorldWidth;
 
-        container
-          .selectAll<SVGGElement, undefined>(".world-copy")
-          .attr("transform", (_, i) => {
-            const offsetIndex = i - 1;
-            const offsetX = normalizedX + offsetIndex * scaledWorldWidth;
-            return `translate(${offsetX}, ${y}) scale(${k})`;
-          });
+        d3.select(outerRef.current).attr(
+          "transform",
+          `translate(${normalizedX}, ${y}) scale(${k})`,
+        );
       });
 
     zoomBehaviorRef.current = zoomBehavior;
-    svg.call(zoomBehavior);
 
+    svg.call(zoomBehavior);
     svg.call(zoomBehavior.transform, zoomTransformRef.current);
   }, [worldData, topologyData]);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!outerRef.current) return;
 
-    d3.select(containerRef.current)
+    d3.select(outerRef.current)
       .selectAll<SVGPathElement, CountryFeature>(".country")
       .attr("fill", (d) => {
         const name = d.properties?.name ?? "Unknown";
+
         if (correctCountries.has(name)) return "#22c55e";
+
         if (name === selectedCountry) {
           return name === targetCountry ? "#22c55e" : "#ef4444";
         }
+
         return "#ffffff";
       });
   }, [correctCountries, selectedCountry, targetCountry]);
@@ -197,7 +199,7 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
       className="w-full h-full bg-[#c9e9fb]"
       shapeRendering="geometricPrecision"
     >
-      <g ref={containerRef} />
+      <g ref={outerRef} />
     </svg>
   );
 }
