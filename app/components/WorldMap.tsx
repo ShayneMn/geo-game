@@ -134,6 +134,7 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
         topologyData,
         topologyData.objects.countries,
         (a, b) =>
+          a === b ||
           getParentCountry(a, countries) !== getParentCountry(b, countries),
       );
 
