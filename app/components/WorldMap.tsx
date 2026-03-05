@@ -47,6 +47,7 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
     country: string;
     parent: string;
   } | null>(null);
+  const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [correctCountries, setCorrectCountries] = useState<Set<string>>(
     new Set(),
   );
@@ -113,6 +114,14 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
       }
     };
 
+    const mouseEnterHandler = (_event: PointerEvent, d: CountryFeature) => {
+      setHoveredCountry(getParentCountry(d, countries));
+    };
+
+    const mouseLeaveHandler = () => {
+      setHoveredCountry(null);
+    };
+
     [-1, 0, 1].forEach((copyIndex) => {
       const group = outer
         .append("g")
@@ -128,7 +137,9 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
         .attr("d", (d) => pathGenerator(d) ?? "")
         .attr("fill", "#ffffff")
         .style("cursor", "pointer")
-        .on("click", clickHandler);
+        .on("click", clickHandler)
+        .on("mouseenter", mouseEnterHandler)
+        .on("mouseleave", mouseLeaveHandler);
 
       const borders = mesh(
         topologyData,
@@ -192,9 +203,21 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
           selectedCountry.parent !== targetCountry
         )
           return "#ef4444";
+        if (hoveredCountry === parent && !correctCountries.has(parent))
+          return "#bfdbfe";
         return "#ffffff";
-      });
-  }, [correctCountries, selectedCountry, targetCountry]);
+      })
+      .attr("stroke", (d) => {
+        const parent = getParentCountry(d, countries);
+        if (hoveredCountry === parent) return "#3b82f6";
+        return "none";
+      })
+      .attr("stroke-width", (d) => {
+        const parent = getParentCountry(d, countries);
+        return hoveredCountry === parent ? 0.5 : 0;
+      })
+      .attr("vector-effect", "non-scaling-stroke");
+  }, [correctCountries, selectedCountry, targetCountry, hoveredCountry]);
 
   if (!worldData) return <div>Loading map...</div>;
 
