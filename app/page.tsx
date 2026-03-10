@@ -2,28 +2,14 @@
 
 import { useState } from "react";
 import WorldMap from "./components/WorldMap";
+import { useRandomCountries } from "@/hooks/useRandomCountries";
 
 export default function Home() {
-  const countries = [
-    "Russia",
-    "France",
-    "Germany",
-    "Ireland",
-    "China",
-    "Chile",
-    "Canada",
-    "New Zealand",
-    "Kenya",
-    "Malta",
-    "Mali",
-    "India",
-    "Australia",
-    "Brazil",
-    "Argentina",
-    "South Africa",
-  ];
-
+  const countries = useRandomCountries(10);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [correctCountries, setCorrectCountries] = useState<Set<string>>(
+    new Set(),
+  );
 
   const currentCountry = countries[currentIndex];
 
@@ -35,14 +21,21 @@ export default function Home() {
     }
   };
 
+  if (!countries.length) return null;
+
   return (
     <main>
-      <p className="absolute top-2 right-1/2 capitalize font-bold bg-orange-200 text-lg py-2 px-6 rounded-md tracking-wider shadow-lg">
-        {currentCountry}
-      </p>
+      {currentCountry && (
+        <p className="absolute top-2 right-1/2 capitalize font-bold bg-orange-200 text-lg py-2 px-6 rounded-md tracking-wider shadow-lg">
+          {currentCountry.name}
+        </p>
+      )}
 
       <WorldMap
-        targetCountry={currentCountry}
+        countries={countries}
+        targetCountry={currentCountry?.name || ""}
+        correctCountries={correctCountries}
+        setCorrectCountries={setCorrectCountries}
         onCorrect={handleCorrectAnswer}
       />
     </main>

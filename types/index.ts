@@ -17,4 +17,7 @@ export type CountryMeta = {
   belongsTo?: string;
 };
 
-export type CountryMetaMap = Record<string, CountryMeta>;
+export type Country = {
+  name: string;
+  meta: CountryMeta;
+};

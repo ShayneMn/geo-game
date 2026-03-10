@@ -3,28 +3,34 @@
 import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import { feature, mesh } from "topojson-client";
-import countriesJson from "@/data/countries.json";
 import { getParentCountry } from "@/lib/utils";
 import type { Topology, GeometryCollection } from "topojson-specification";
 import type {
+  Country,
   CountryFeature,
   CountryFeatureCollection,
-  CountryMetaMap,
   CountryProperties,
 } from "@/types";
-
-const countries: CountryMetaMap = countriesJson;
 
 const width = 1000;
 const height = 550;
 const baseStroke = 0.5;
 
 type WorldMapProps = {
+  countries: Country[];
   targetCountry: string;
+  correctCountries: Set<string>;
+  setCorrectCountries: React.Dispatch<React.SetStateAction<Set<string>>>;
   onCorrect: () => void;
 };
 
-export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
+export default function WorldMap({
+  countries,
+  targetCountry,
+  correctCountries,
+  setCorrectCountries,
+  onCorrect,
+}: WorldMapProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const outerRef = useRef<SVGGElement | null>(null);
 
@@ -48,9 +54,6 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
     parent: string;
   } | null>(null);
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
-  const [correctCountries, setCorrectCountries] = useState<Set<string>>(
-    new Set(),
-  );
 
   const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<
@@ -110,7 +113,7 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
 
       if (parent === target) {
         setCorrectCountries((prev) => new Set([...prev, parent]));
-        setTimeout(() => onCorrectRef.current(), 300);
+        onCorrectRef.current();
       }
     };
 
@@ -187,7 +190,9 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
 
     svg.call(zoomBehavior);
     svg.call(zoomBehavior.transform, zoomTransformRef.current);
-  }, [worldData, topologyData]);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countries, worldData, topologyData]);
 
   useEffect(() => {
     if (!outerRef.current) return;
@@ -217,7 +222,13 @@ export default function WorldMap({ targetCountry, onCorrect }: WorldMapProps) {
         return hoveredCountry === parent ? 0.5 : 0;
       })
       .attr("vector-effect", "non-scaling-stroke");
-  }, [correctCountries, selectedCountry, targetCountry, hoveredCountry]);
+  }, [
+    countries,
+    targetCountry,
+    correctCountries,
+    selectedCountry,
+    hoveredCountry,
+  ]);
 
   if (!worldData) return <div>Loading map...</div>;
 
